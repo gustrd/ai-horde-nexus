@@ -1,0 +1,32 @@
+# AI Horde Scribe Worker Configuration Example
+# Copy this to configs/config.yaml and customize.
+
+horde:
+  api_key: "0000000000" # Your AI Horde API Key (get it at aihorde.net)
+  url: "https://aihorde.net"
+
+worker:
+  name: "MyScribeWorker" # Unique name for your worker
+  max_threads: 1 # Number of concurrent jobs to process (slots)
+  max_length: 512 # Max response length per job
+  max_context_length: 8192 # Max context length the backend supports
+  models_to_serve: 
+    - "*" # Use ["*"] to serve all models, or list specific ones
+  priority_usernames: [] # List of usernames that get priority from your worker
+  nsfw: true # Whether you allow generation of NSFW content
+  blacklist: [] # List of words/patterns that will trigger a skip
+  require_upfront_kudos: false # If true, only works on jobs that paid upfront
+
+backend:
+  url: "http://localhost:5001" # URL of your local inference engine (KoboldCpp, etc)
+  timeout: 300 # Max time in seconds for a single generation
+  api_key: "" # Optional for backends requiring authentication
+  model_name_override: "" # Optional: send a fixed model name to the backend
+
+resilience:
+  backend_timeout: 300 # Timeout for backend generation call
+  backend_health_interval: 30 # How often to check if backend is alive
+  horde_heartbeat_interval: 300 # How often to check Horde heartbeat
+
+log_level: "INFO" # DEBUG, INFO, WARNING, ERROR
+structured_logging: false # Set to true for JSON logging (useful for ELK/Grafana)

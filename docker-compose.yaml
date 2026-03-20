@@ -1,0 +1,38 @@
+services:
+  scribe-worker:
+    build: .
+    environment:
+      # --- Horde Credentials ---
+      - HORDE_API_KEY=${HORDE_API_KEY:-0000000000}
+      - HORDE_WORKER_NAME=${HORDE_WORKER_NAME:-Docker-Scribe-Worker}
+      - HORDE_URL=${HORDE_URL:-https://aihorde.net}
+      
+      # --- Backend Settings ---
+      - HORDE_BACKEND_URL=${HORDE_BACKEND_URL:-http://host.docker.internal:5001}
+      - HORDE_BACKEND_API_KEY=${HORDE_BACKEND_API_KEY:-}
+      - HORDE_BACKEND_MODEL_OVERRIDE=${HORDE_BACKEND_MODEL_OVERRIDE:-}
+      - HORDE_BACKEND_TIMEOUT=${HORDE_BACKEND_TIMEOUT:-300}
+      
+      # --- Worker Scaling & Constraints ---
+      - HORDE_MAX_THREADS=${HORDE_MAX_THREADS:-1}
+      - HORDE_MAX_LENGTH=${HORDE_MAX_LENGTH:-512}
+      - HORDE_MAX_CONTEXT_LENGTH=${HORDE_MAX_CONTEXT_LENGTH:-8192}
+      - HORDE_MODELS_TO_SERVE=${HORDE_MODELS_TO_SERVE:-*}
+      
+      # --- Filtering & Policy ---
+      - HORDE_NSFW=${HORDE_NSFW:-true}
+      - HORDE_BLACKLIST=${HORDE_BLACKLIST:-}
+      - HORDE_PRIORITY_USERNAMES=${HORDE_PRIORITY_USERNAMES:-}
+      
+      # --- Logging ---
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - STRUCTURED_LOGGING=${STRUCTURED_LOGGING:-false}
+    
+    volumes:
+      - ./configs:/app/configs
+    
+    # Allow communication to host (for local KoboldCpp/llama.cpp server)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    
+    restart: unless-stopped
