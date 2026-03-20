@@ -7,8 +7,10 @@ from .core.config import load_config
 from .core.logger import setup_logging
 from .core.horde_api import HordeAPI
 from .core.health import HealthMonitor
+from .core.stats import StatsAggregator
 from .backends.adapters import detect_backend
 from .worker import WorkerThread, WorkerStats
+from .webui.server import WebUI
 
 # Version
 VERSION = "0.1.0"
@@ -65,7 +67,34 @@ async def main():
                 logger.warning("Wildcard '*' in models_to_serve but could not detect model from backend.")
                 if config.worker.models_to_serve == ["*"]:
                     logger.error("No specific models defined and auto-discovery failed. Horde Pop will fail.")
-                    # We continue but it will probably fail with 400 as seen before
+
+        # 3.2 Apply model_name_override if set — overrides any auto-resolved names
+        if config.backend.model_name_override:
+            logger.info(f"Applying model_name_override: '{config.backend.model_name_override}'")
+            config.worker.models_to_serve = [config.backend.model_name_override]
+
+        # 3.3 Auto-resolve max_context_length if possible
+        backend_ctx = await backend.get_max_context()
+        if backend_ctx:
+            if backend_ctx < config.worker.max_context_length:
+                logger.warning(
+                    f"Backend context ({backend_ctx}) is LOWER than config "
+                    f"max_context_length ({config.worker.max_context_length}). "
+                    f"Adjusting to backend limit to avoid errors."
+                )
+                config.worker.max_context_length = backend_ctx
+            elif backend_ctx > config.worker.max_context_length:
+                logger.info(
+                    f"Backend supports larger context ({backend_ctx}) than "
+                    f"config ({config.worker.max_context_length}). Using config limit."
+                )
+            else:
+                logger.info(f"Backend context matches config: {backend_ctx} tokens.")
+        else:
+            logger.info(
+                f"Backend did not report a context size. "
+                f"Using config fallback: {config.worker.max_context_length} tokens."
+            )
 
         logger.info(f"Verified backend: {backend.name} at {backend.url}")
     except Exception as e:
@@ -81,7 +110,14 @@ async def main():
     )
     
     stats = WorkerStats()
+    aggregator = StatsAggregator()
     shutdown_event = asyncio.Event()
+
+    # 4.1 Initialize WebUI
+    webui = None
+    if config.worker.webui_enabled:
+        webui = WebUI(aggregator, shutdown_event, port=config.worker.webui_port)
+        await webui.start()
 
     # 5. Initialize Health Monitor
     health_monitor = HealthMonitor(backend, horde, config, stats)
@@ -97,9 +133,21 @@ async def main():
             config=config, 
             stats=stats,
             health_monitor=health_monitor,
-            shutdown_event=shutdown_event
+            shutdown_event=shutdown_event,
+            aggregator=aggregator
         )
         worker_threads.append(asyncio.create_task(worker.run()))
+        
+    # 6.1 Snapshot Loop (for WebUI chart permanence)
+    async def snapshot_loop():
+        while not shutdown_event.is_set():
+            aggregator.take_snapshot()
+            try:
+                await asyncio.wait_for(shutdown_event.wait(), timeout=60.0) # Snapshot every minute
+            except asyncio.TimeoutError:
+                pass
+    
+    snapshot_task = asyncio.create_task(snapshot_loop())
 
     # 7. Signal Handling for Graceful Shutdown
     def handle_exit():
@@ -118,12 +166,14 @@ async def main():
     # 8. Main Loop / Wait for Termination
     try:
         # Wait until all worker tasks are done
-        await asyncio.gather(*worker_threads)
+        await asyncio.gather(snapshot_task, *worker_threads)
     except asyncio.CancelledError:
         pass
     finally:
         # 9. Cleanup
         logger.info("Closing API sessions...")
+        if webui:
+            await webui.stop()
         await health_monitor.stop()
         await horde.close()
         await backend.close()

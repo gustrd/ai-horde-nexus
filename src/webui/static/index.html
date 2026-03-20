@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Horde Nexus Dashboard</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@1/css/pico.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --primary: #10b981;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            padding: 1.5rem;
+            background: #1e293b;
+            border-radius: 8px;
+            text-align: center;
+        }
+        .stat-card h3 {
+            font-size: 0.875rem;
+            color: #94a3b8;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card .value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+        .chart-container {
+            background: #1e293b;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 2rem;
+        }
+        table {
+            font-size: 0.9rem;
+        }
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: bold;
+        }
+        .status-generating { background: #065f46; color: #34d399; }
+        .status-submitting { background: #1e40af; color: #93c5fd; }
+        .status-success { color: #10b981; }
+        .status-error { color: #ef4444; }
+        .hidden { display: none; }
+        .clickable-row { cursor: pointer; }
+        .clickable-row:hover { background: rgba(255, 255, 255, 0.05); }
+        .details-cell { background: rgba(0, 0, 0, 0.15); font-size: 0.85em; padding: 0.75rem !important; }
+    </style>
+</head>
+<body>
+    <main class="container">
+        <header style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 2rem;">
+            <hgroup style="margin-bottom: 0;">
+                <h1>AI Horde Nexus</h1>
+                <h2>Scribe Worker Dashboard</h2>
+            </hgroup>
+            <div role="group" style="margin-bottom: 0;">
+                <button class="secondary outline" id="btn-pause" onclick="controlAction('pause')" title="Pause Polling">⏸️</button>
+                <button class="secondary outline hidden" id="btn-resume" onclick="controlAction('resume')" title="Resume Polling">▶️</button>
+                <button class="secondary outline" id="btn-shutdown" onclick="controlAction('shutdown')" title="Soft Shutdown">🛑</button>
+            </div>
+        </header>
+
+        <!-- Stats Overview -->
+        <section class="stats-grid">
+            <article class="stat-card">
+                <h3>Uptime</h3>
+                <div class="value" id="uptime">0s</div>
+            </article>
+            <article class="stat-card" style="position: relative;">
+                <h3>Active Threads</h3>
+                <div class="value"><span id="active_jobs_count">0</span></div>
+                <div style="font-size: 0.75rem; color: #94a3b8; margin-top: 0.25rem;">Max Session: <span id="max_active_threads">0</span></div>
+            </article>
+            <article class="stat-card">
+                <h3>Total Jobs</h3>
+                <div class="value" id="total_jobs">0</div>
+            </article>
+            <article class="stat-card">
+                <h3>Total Tokens</h3>
+                <div class="value" id="total_tokens">0</div>
+            </article>
+            <article class="stat-card">
+                <h3>Total Kudos</h3>
+                <div class="value" id="total_kudos">0.0</div>
+            </article>
+            <article class="stat-card">
+                <h3>Kudos/h</h3>
+                <div class="value" id="kudos_per_hour">0.0</div>
+            </article>
+        </section>
+
+        <!-- Charts Section -->
+        <section class="grid">
+            <div class="chart-container">
+                <canvas id="activityChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <canvas id="speedChart"></canvas>
+            </div>
+        </section>
+
+        <!-- Active Jobs -->
+        <section>
+            <h3>Active Operations</h3>
+            <figure>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Thread</th>
+                            <th>Job ID</th>
+                            <th>Model</th>
+                            <th>Status</th>
+                            <th>Time</th>
+                        </tr>
+                    </thead>
+                    <tbody id="active-jobs-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </figure>
+        </section>
+
+        <!-- History -->
+        <section>
+            <h3>Recent History</h3>
+            <figure>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Job ID</th>
+                            <th>Model</th>
+                            <th>Tokens</th>
+                            <th>Kudos</th>
+                            <th>Dur.</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="history-body">
+                        <!-- Filled by JS -->
+                    </tbody>
+                </table>
+            </figure>
+        </section>
+
+    </main>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

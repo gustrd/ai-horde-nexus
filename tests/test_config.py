@@ -38,3 +38,20 @@ def test_display_masking():
     assert "..." in d["horde"]["api_key"]
     assert "2345" in d["horde"]["api_key"]
     assert "secret" not in d["horde"]["api_key"]
+
+def test_model_name_override_default_is_none():
+    """model_name_override must default to None when unset."""
+    config = load_config()
+    assert config.backend.model_name_override is None
+
+def test_model_name_override_via_env(monkeypatch):
+    """model_name_override must be set by env var."""
+    monkeypatch.setenv("HORDE_BACKEND_MODEL_OVERRIDE", "koboldcpp/my-special-model")
+    config = load_config()
+    assert config.backend.model_name_override == "koboldcpp/my-special-model"
+
+def test_model_name_override_empty_env_stays_none(monkeypatch):
+    """Empty string env var must not override to empty string; must stay None."""
+    monkeypatch.setenv("HORDE_BACKEND_MODEL_OVERRIDE", "")
+    config = load_config()
+    assert config.backend.model_name_override is None

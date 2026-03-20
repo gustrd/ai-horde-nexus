@@ -16,6 +16,8 @@ def mock_horde():
 def mock_backend():
     b = MagicMock()
     b.generate = AsyncMock()
+    b.tokenize = AsyncMock(return_value=None)
+    b.get_max_context = AsyncMock(return_value=None)
     b.supports_format_flags = False
     return b
 
@@ -54,7 +56,7 @@ async def test_worker_thread_single_job(mock_horde, mock_backend, mock_health, m
     stats = WorkerStats()
     shutdown = asyncio.Event()
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job
     job = HordeJob("job1", "Hello", params={}, model="model1")
@@ -86,7 +88,7 @@ async def test_worker_thread_skip_job(mock_horde, mock_backend, mock_health, moc
     shutdown = asyncio.Event()
     mock_config.worker.blacklist = ["skipme"]
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job that should be skipped
     job = HordeJob("job1", "Please skipme", params={}, model="model1")
@@ -111,7 +113,7 @@ async def test_worker_thread_error_reporting(mock_horde, mock_backend, mock_heal
     stats = WorkerStats()
     shutdown = asyncio.Event()
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job
     job = HordeJob("job1", "Prompt", params={}, model="model1")
@@ -132,3 +134,80 @@ async def test_worker_thread_error_reporting(mock_horde, mock_backend, mock_heal
     
     assert stats.errors_count == 1
     mock_horde.submit_error.assert_called_with("job1", "Worker error: Backend crash")
+
+@pytest.mark.asyncio
+async def test_worker_aborts_when_context_exceeded(mock_horde, mock_backend, mock_health, mock_config):
+    """Worker must abort (submit_error) without generating if prompt+requested > max_context_length."""
+    stats = WorkerStats()
+    shutdown = asyncio.Event()
+    mock_config.worker.max_context_length = 100
+
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
+
+    # tokenize returns a real count that will exceed the limit
+    mock_backend.tokenize.return_value = 90  # 90 prompt tokens + 50 max_length = 140 > 100
+    job = HordeJob("job1", "A" * 360, params={"max_length": 50}, model="model1")
+    mock_horde.pop_job.side_effect = [job, None]
+
+    task = asyncio.create_task(worker.run())
+    await asyncio.sleep(0.5)
+    shutdown.set()
+    await task
+
+    # Generation must NOT have been called
+    mock_backend.generate.assert_not_called()
+    # Error must have been submitted to Horde (not a general "Worker error")
+    args = mock_horde.submit_error.call_args
+    assert "exceed" in args[0][1].lower()
+
+@pytest.mark.asyncio
+async def test_worker_uses_precise_tokenize_count(mock_horde, mock_backend, mock_health, mock_config):
+    """When tokenize returns a count, that count is used instead of the char estimate."""
+    stats = WorkerStats()
+    shutdown = asyncio.Event()
+    mock_config.worker.max_context_length = 8192
+
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
+
+    # Backend reports exact token count - well within limits
+    mock_backend.tokenize.return_value = 20
+    job = HordeJob("job1", "Hello", params={"max_length": 50}, model="model1")
+    mock_horde.pop_job.side_effect = [job, None]
+    mock_backend.generate.return_value = MagicMock(text="Response", token_count=5)
+    mock_horde.submit_job.return_value = 2.0
+
+    task = asyncio.create_task(worker.run())
+    while stats.jobs_count < 1:
+        await asyncio.sleep(0.1)
+    shutdown.set()
+    await task
+
+    assert stats.jobs_count == 1
+    mock_backend.generate.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_worker_falls_back_to_char_estimate_when_tokenize_unavailable(mock_horde, mock_backend, mock_health, mock_config):
+    """When tokenize returns None, worker must estimate context as len(prompt) // 4 and still generate."""
+    stats = WorkerStats()
+    shutdown = asyncio.Event()
+    mock_config.worker.max_context_length = 8192
+
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
+
+    # tokenize returns None (backend doesn't support it)
+    mock_backend.tokenize.return_value = None
+    # A "Hello" prompt: len=5 // 4 = 1 token estimate, well within 8192
+    job = HordeJob("job1", "Hello", params={"max_length": 50}, model="model1")
+    mock_horde.pop_job.side_effect = [job, None]
+    mock_backend.generate.return_value = MagicMock(text="World", token_count=1)
+    mock_horde.submit_job.return_value = 1.0
+
+    task = asyncio.create_task(worker.run())
+    while stats.jobs_count < 1:
+        await asyncio.sleep(0.1)
+    shutdown.set()
+    await task
+
+    # Should have generated despite no tokenize support
+    assert stats.jobs_count == 1
+    mock_backend.generate.assert_called_once()

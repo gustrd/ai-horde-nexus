@@ -49,6 +49,14 @@ class BackendAdapter:
         """Returns the name of the currently loaded model on the backend."""
         return None
 
+    async def get_max_context(self) -> Optional[int]:
+        """Returns the maximum context length supported by the backend."""
+        return None
+
+    async def tokenize(self, text: str) -> Optional[int]:
+        """Returns the number of tokens in the given text."""
+        return None
+
     async def generate(self, prompt: str, params: Dict[str, Any], max_length: int, model_name: str) -> GenerationResult:
         raise NotImplementedError()
 
@@ -76,6 +84,31 @@ class KoboldAIBackend(BackendAdapter):
                 if resp.status == 200:
                     data = await resp.json()
                     return data.get("result")
+        except:
+            pass
+        return None
+
+    async def get_max_context(self) -> Optional[int]:
+        if not self.session: await self.start()
+        try:
+            # KoboldCpp /api/v1/config
+            async with self.session.get("/api/v1/config", timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # Some versions have n_ctx or max_context_length
+                    return data.get("n_ctx") or data.get("max_context_length")
+        except:
+            pass
+        return None
+
+    async def tokenize(self, text: str) -> Optional[int]:
+        if not self.session: await self.start()
+        try:
+            # KoboldCpp /api/v1/extra/tokencount
+            async with self.session.post("/api/v1/extra/tokencount", json={"prompt": text}, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    return data.get("value")
         except:
             pass
         return None
@@ -170,6 +203,32 @@ class LlamaCppBackend(OpenAIBackend):
                 return False
         except:
             return False
+
+    async def get_max_context(self) -> Optional[int]:
+        if not self.session: await self.start()
+        try:
+            # llama.cpp /props
+            async with self.session.get("/props", timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # default_generation_settings.n_ctx
+                    return data.get("default_generation_settings", {}).get("n_ctx")
+        except:
+            pass
+        return await super().get_max_context()
+
+    async def tokenize(self, text: str) -> Optional[int]:
+        if not self.session: await self.start()
+        try:
+            # llama.cpp /tokenize
+            async with self.session.post("/tokenize", json={"content": text}, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    tokens = data.get("tokens", [])
+                    return len(tokens)
+        except:
+            pass
+        return None
 
 async def detect_backend(url: str, timeout: int = 10) -> BackendAdapter:
     """Probes the URL to determine the backend type."""
