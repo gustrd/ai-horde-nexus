@@ -73,6 +73,29 @@ async def main():
             logger.info(f"Applying model_name_override: '{config.backend.model_name_override}'")
             config.worker.models_to_serve = [config.backend.model_name_override]
 
+        # 3.3 Auto-resolve max_context_length if possible
+        backend_ctx = await backend.get_max_context()
+        if backend_ctx:
+            if backend_ctx < config.worker.max_context_length:
+                logger.warning(
+                    f"Backend context ({backend_ctx}) is LOWER than config "
+                    f"max_context_length ({config.worker.max_context_length}). "
+                    f"Adjusting to backend limit to avoid errors."
+                )
+                config.worker.max_context_length = backend_ctx
+            elif backend_ctx > config.worker.max_context_length:
+                logger.info(
+                    f"Backend supports larger context ({backend_ctx}) than "
+                    f"config ({config.worker.max_context_length}). Using config limit."
+                )
+            else:
+                logger.info(f"Backend context matches config: {backend_ctx} tokens.")
+        else:
+            logger.info(
+                f"Backend did not report a context size. "
+                f"Using config fallback: {config.worker.max_context_length} tokens."
+            )
+
         logger.info(f"Verified backend: {backend.name} at {backend.url}")
     except Exception as e:
         logger.error(f"Failed to detect or connect to backend: {e}")

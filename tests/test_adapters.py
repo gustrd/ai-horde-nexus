@@ -108,3 +108,84 @@ async def test_openai_generate(mock_aioresponse):
     result = await adapter.generate("Hello", {}, 256, "model-test")
     assert result.text == "Hello response"
     assert result.token_count == 5
+
+# --- get_max_context tests ---
+
+@pytest.mark.asyncio
+async def test_kobold_get_max_context(mock_aioresponse):
+    url = "http://localhost:5001"
+    adapter = KoboldAIBackend(url)
+    mock_aioresponse.get(f"{url}/api/v1/config", payload={"max_context_length": 4096}, status=200)
+    ctx = await adapter.get_max_context()
+    assert ctx == 4096
+
+@pytest.mark.asyncio
+async def test_kobold_get_max_context_fallback_to_none(mock_aioresponse):
+    """When KoboldAI config endpoint fails, returns None so YAML config is used."""
+    url = "http://localhost:5001"
+    adapter = KoboldAIBackend(url)
+    mock_aioresponse.get(f"{url}/api/v1/config", status=404)
+    ctx = await adapter.get_max_context()
+    assert ctx is None
+
+@pytest.mark.asyncio
+async def test_llamacpp_get_max_context(mock_aioresponse):
+    url = "http://localhost:8080"
+    adapter = LlamaCppBackend(url)
+    mock_aioresponse.get(
+        f"{url}/props",
+        payload={"default_generation_settings": {"n_ctx": 8192}},
+        status=200
+    )
+    ctx = await adapter.get_max_context()
+    assert ctx == 8192
+
+@pytest.mark.asyncio
+async def test_llamacpp_get_max_context_fallback_to_none(mock_aioresponse):
+    """When llama.cpp props endpoint is unavailable, returns None so YAML config is used."""
+    url = "http://localhost:8080"
+    adapter = LlamaCppBackend(url)
+    mock_aioresponse.get(f"{url}/props", status=404)
+    # super() also returns None for OpenAIBackend.get_max_context
+    ctx = await adapter.get_max_context()
+    assert ctx is None
+
+# --- tokenize tests ---
+
+@pytest.mark.asyncio
+async def test_kobold_tokenize(mock_aioresponse):
+    url = "http://localhost:5001"
+    adapter = KoboldAIBackend(url)
+    mock_aioresponse.post(f"{url}/api/v1/extra/tokencount", payload={"value": 42}, status=200)
+    count = await adapter.tokenize("Hello world how are you")
+    assert count == 42
+
+@pytest.mark.asyncio
+async def test_kobold_tokenize_fallback_to_none(mock_aioresponse):
+    """When KoboldAI tokencount endpoint is unavailable, returns None so worker falls back to char estimate."""
+    url = "http://localhost:5001"
+    adapter = KoboldAIBackend(url)
+    mock_aioresponse.post(f"{url}/api/v1/extra/tokencount", status=404)
+    count = await adapter.tokenize("Hello")
+    assert count is None
+
+@pytest.mark.asyncio
+async def test_llamacpp_tokenize(mock_aioresponse):
+    url = "http://localhost:8080"
+    adapter = LlamaCppBackend(url)
+    mock_aioresponse.post(
+        f"{url}/tokenize",
+        payload={"tokens": [1, 2, 3, 4, 5]},
+        status=200
+    )
+    count = await adapter.tokenize("Hello world")
+    assert count == 5
+
+@pytest.mark.asyncio
+async def test_llamacpp_tokenize_fallback_to_none(mock_aioresponse):
+    """When llama.cpp tokenize endpoint is unavailable, returns None so worker falls back to char estimate."""
+    url = "http://localhost:8080"
+    adapter = LlamaCppBackend(url)
+    mock_aioresponse.post(f"{url}/tokenize", status=404)
+    count = await adapter.tokenize("Hello")
+    assert count is None

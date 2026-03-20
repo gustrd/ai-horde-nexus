@@ -123,9 +123,19 @@ class WorkerThread:
                          self.config.worker.max_length)
         
         try:
-            # Calculate metrics for the UI
-            context_len = len(job.prompt) // 4  # rough estimation
+            # 3. Calculate metrics for the UI (precise if backend supports tokenize)
+            token_count = await self.backend.tokenize(job.prompt)
+            context_len = token_count if token_count is not None else (len(job.prompt) // 4)
             requested_tokens = job.params.get("max_length", 0)
+
+            # Defensive check: if prompt + requested exceeds context size and backend hasn't auto-checked it
+            if context_len + requested_tokens > self.config.worker.max_context_length:
+                reason = f"Job tokens ({context_len} + {requested_tokens}) exceed worker max context ({self.config.worker.max_context_length})"
+                self.logger.warning(f"Aborting Job {job.id[:12]}: {reason}")
+                await self.horde.submit_error(job.id, reason)
+                if self.aggregator:
+                    self.aggregator.fail_job(self.thread_id, "exceeds-context")
+                return
 
             # 4. Generate
             # Timeboxed generation
