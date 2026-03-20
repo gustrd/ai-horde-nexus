@@ -155,6 +155,22 @@ class OpenAIBackend(BackendAdapter):
                 body = await resp.text()
                 raise RuntimeError(f"Backend error: status {resp.status} - {body[:100]}")
 
+class LlamaCppBackend(OpenAIBackend):
+    def __init__(self, url: str):
+        super().__init__(url=url, name="llama.cpp")
+
+    async def health_check(self) -> bool:
+        if not self.session: await self.start()
+        try:
+            async with self.session.get("/health", timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    # llama.cpp server returns {"status": "ok"} or {"status": "loading"}
+                    return data.get("status") == "ok"
+                return False
+        except:
+            return False
+
 async def detect_backend(url: str, timeout: int = 10) -> BackendAdapter:
     """Probes the URL to determine the backend type."""
     logger.info(f"Probing backend at {url}...")
@@ -168,7 +184,17 @@ async def detect_backend(url: str, timeout: int = 10) -> BackendAdapter:
                     return KoboldAIBackend(url)
         except: pass
         
-        # 2. OpenAI-style Probe
+        # 2. llama.cpp Probe (via /health)
+        try:
+            async with session.get(f"{url}/health", timeout=timeout) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    if "status" in data:
+                        logger.info("Found: llama.cpp Backend")
+                        return LlamaCppBackend(url)
+        except: pass
+        
+        # 3. OpenAI-style Probe
         try:
             async with session.get(f"{url}/v1/models", timeout=timeout) as resp:
                 if resp.status == 200:

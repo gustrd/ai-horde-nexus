@@ -1,6 +1,6 @@
 import pytest
 from aioresponses import aioresponses
-from src.backends.adapters import KoboldAIBackend, OpenAIBackend, detect_backend
+from src.backends.adapters import KoboldAIBackend, OpenAIBackend, LlamaCppBackend, detect_backend
 
 @pytest.fixture
 def mock_aioresponse():
@@ -48,12 +48,32 @@ async def test_openai_get_model(mock_aioresponse):
     assert await adapter.get_current_model() == "gpt-test"
 
 @pytest.mark.asyncio
+async def test_llamacpp_health_check(mock_aioresponse):
+    url = "http://localhost:8080"
+    adapter = LlamaCppBackend(url)
+    # Healthy
+    mock_aioresponse.get(f"{url}/health", payload={"status": "ok"}, status=200)
+    assert await adapter.health_check() is True
+    # Loading/Busy
+    mock_aioresponse.get(f"{url}/health", payload={"status": "loading"}, status=200)
+    assert await adapter.health_check() is False
+
+@pytest.mark.asyncio
 async def test_detect_backend_kobold(mock_aioresponse):
     url = "http://localhost:5001"
     mock_aioresponse.get(f"{url}/api/v1/model", payload={"result": "test-model"}, status=200)
     
     adapter = await detect_backend(url)
     assert isinstance(adapter, KoboldAIBackend)
+
+@pytest.mark.asyncio
+async def test_detect_backend_llamacpp(mock_aioresponse):
+    url = "http://localhost:8080"
+    mock_aioresponse.get(f"{url}/api/v1/model", status=404)
+    mock_aioresponse.get(f"{url}/health", payload={"status": "ok"}, status=200)
+    
+    adapter = await detect_backend(url)
+    assert isinstance(adapter, LlamaCppBackend)
 
 @pytest.mark.asyncio
 async def test_detect_backend_openai(mock_aioresponse):
