@@ -22,6 +22,8 @@ class WorkerConfig:
     nsfw: bool = True
     blacklist: List[str] = field(default_factory=list)
     require_upfront_kudos: bool = False
+    webui_enabled: bool = True
+    webui_port: int = 8082
 
 @dataclass
 class BackendConfig:
@@ -122,10 +124,12 @@ def load_config(config_path: Optional[str] = None) -> AppConfig:
     config.worker.nsfw = env_bool("HORDE_NSFW", config.worker.nsfw)
     config.worker.blacklist = env_list("HORDE_BLACKLIST", config.worker.blacklist)
     config.worker.require_upfront_kudos = env_bool("HORDE_REQUIRE_KUDOS", config.worker.require_upfront_kudos)
+    config.worker.webui_enabled = env_bool("HORDE_WEBUI_ENABLED", config.worker.webui_enabled)
+    config.worker.webui_port = env_int("HORDE_WEBUI_PORT", config.worker.webui_port)
     
     config.backend.url = env_str("HORDE_BACKEND_URL", config.backend.url)
     config.backend.api_key = env_str("HORDE_BACKEND_API_KEY", config.backend.api_key or "")
-    config.backend.model_name_override = env_str("HORDE_BACKEND_MODEL_OVERRIDE", config.backend.model_name_override or "")
+    config.backend.model_name_override = env_str("HORDE_BACKEND_MODEL_OVERRIDE", config.backend.model_name_override or "") or None
     config.backend.timeout = env_int("HORDE_BACKEND_TIMEOUT", config.backend.timeout)
     
     config.log_level = env_str("LOG_LEVEL", config.log_level)

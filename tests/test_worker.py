@@ -54,7 +54,7 @@ async def test_worker_thread_single_job(mock_horde, mock_backend, mock_health, m
     stats = WorkerStats()
     shutdown = asyncio.Event()
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job
     job = HordeJob("job1", "Hello", params={}, model="model1")
@@ -86,7 +86,7 @@ async def test_worker_thread_skip_job(mock_horde, mock_backend, mock_health, moc
     shutdown = asyncio.Event()
     mock_config.worker.blacklist = ["skipme"]
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job that should be skipped
     job = HordeJob("job1", "Please skipme", params={}, model="model1")
@@ -111,7 +111,7 @@ async def test_worker_thread_error_reporting(mock_horde, mock_backend, mock_heal
     stats = WorkerStats()
     shutdown = asyncio.Event()
     
-    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown)
+    worker = WorkerThread(0, mock_horde, mock_backend, mock_config, stats, mock_health, shutdown, None)
     
     # 1. Provide a job
     job = HordeJob("job1", "Prompt", params={}, model="model1")

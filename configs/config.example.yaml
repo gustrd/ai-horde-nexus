@@ -1,32 +1,35 @@
-# AI Horde Scribe Worker Configuration Example
-# Copy this to configs/config.yaml and customize.
-
+# Horde Credentials
 horde:
-  api_key: "0000000000" # Your AI Horde API Key (get it at aihorde.net)
+  api_key: "0000000000"  # Your aihorde.net API key
   url: "https://aihorde.net"
 
+# Worker Parameters
 worker:
-  name: "MyScribeWorker" # Unique name for your worker
-  max_threads: 1 # Number of concurrent jobs to process (slots)
-  max_length: 512 # Max response length per job
-  max_context_length: 8192 # Max context length the backend supports
+  name: "ScribeWorker"
+  max_threads: 1
+  max_length: 512
+  max_context_length: 8192
   models_to_serve: 
-    - "*" # Use ["*"] to serve all models, or list specific ones
-  priority_usernames: [] # List of usernames that get priority from your worker
-  nsfw: true # Whether you allow generation of NSFW content
-  blacklist: [] # List of words/patterns that will trigger a skip
-  require_upfront_kudos: false # If true, only works on jobs that paid upfront
+    - "*"  # Use "*" for auto-detection or specify model names
+  nsfw: true
+  blacklist: []
+  require_upfront_kudos: false
+  
+  # WebUI Dashboard
+  webui_enabled: true
+  webui_port: 8082
 
+# Backend Inference Settings
 backend:
-  url: "http://localhost:5001" # URL of your local inference engine (KoboldCpp, etc)
-  timeout: 300 # Max time in seconds for a single generation
-  api_key: "" # Optional for backends requiring authentication
-  model_name_override: "" # Optional: send a fixed model name to the backend
+  url: "http://localhost:5001"  # KoboldCpp / llama.cpp server URL
+  api_key: ""                   # Optional Authorization header
+  timeout: 300
 
+# Resilience & Retries
 resilience:
-  backend_timeout: 300 # Timeout for backend generation call
-  backend_health_interval: 30 # How often to check if backend is alive
-  horde_heartbeat_interval: 300 # How often to check Horde heartbeat
+  backend_timeout: 300
+  backend_health_interval: 30
+  horde_heartbeat_interval: 300
 
-log_level: "INFO" # DEBUG, INFO, WARNING, ERROR
-structured_logging: false # Set to true for JSON logging (useful for ELK/Grafana)
+# Logging
+log_level: "INFO"
