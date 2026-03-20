@@ -84,7 +84,8 @@ This project aims for 100% test coverage using `pytest`. Run the suite with:
 uv run pytest
 ```
 
-## 📜 Roadmap & Status
+## Roadmap & Status
 
-- **Phase 1: DONE.** Complete scaffolding, backend auto-detection, KoboldCpp integration, threaded polling/submission loop, resilience monitoring, unit tests.
-- **Next Phases** Additional backends, WebUI with stats, etc. Suggestions are welcome!
+- **Phase 1: DONE.** Complete scaffolding, backend auto-detection, KoboldCpp and llama.cpp integration, threaded polling/submission loop, resilience monitoring, and full unit test coverage.
+- **Status Update:** Successfully verified against **KoboldCpp** and **llama.cpp** with multi-threaded execution (2+ threads).
+- **Next Phases:** Additional backends, WebUI with stats, etc. Suggestions are welcome!
